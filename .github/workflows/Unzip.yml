@@ -1,0 +1,48 @@
+name: Unzip project
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - project.zip
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  unzip:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract project.zip
+        run: |
+          test -f project.zip
+          mkdir /tmp/extracted
+          unzip -q project.zip -d /tmp/extracted -x "__MACOSX/*"
+
+          SRC=/tmp/extracted
+          # لو الزيب جواه فولدر واحد بس، ادخل جواه
+          if [ "$(ls -A $SRC | wc -l)" = "1" ] && [ -d "$SRC/$(ls -A $SRC)" ]; then
+            SRC="$SRC/$(ls -A $SRC)"
+          fi
+          test -f "$SRC/package.json"
+          rm -rf "$SRC/.github"
+
+          # امسح الملفات القديمة (غير git و.github والزيب) وانسخ الجديدة
+          find . -mindepth 1 -maxdepth 1 ! -name .git ! -name .github ! -name project.zip -exec rm -rf {} +
+          cp -a "$SRC"/. .
+          rm -f project.zip
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes"
+          else
+            git commit -m "Extract project.zip"
+            git push
+          fi
